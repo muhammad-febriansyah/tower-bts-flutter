@@ -65,6 +65,13 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     return _currentLocation ?? widget.user?.areaKerja ?? 'Unknown Location';
   }
 
+  String _formatCurrency(double amount) {
+    return amount.toStringAsFixed(0).replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match match) => '${match[1]}.',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -213,6 +220,55 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                   ),
                 ],
               ),
+              // Saldo Budget untuk Engineer/Mitra
+              if (widget.user?.role == 'engineer' || widget.user?.role == 'mitra') ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Iconsax.wallet_3,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Saldo Budget',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.9),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Rp ${_formatCurrency(widget.user?.budgetBalance ?? 0)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),

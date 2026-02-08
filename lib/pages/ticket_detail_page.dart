@@ -12,6 +12,7 @@ import '../config/app_colors.dart';
 import '../utils/role_permissions.dart';
 import '../widgets/location_map_widget.dart';
 import '../widgets/assign_ticket_dialog.dart';
+import 'request_corr_mo_page.dart';
 
 class TicketDetailPage extends StatefulWidget {
   final int ticketId;
@@ -1039,6 +1040,62 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
                             ),
                           ),
                           const SizedBox(height: 12),
+                        ],
+                      ),
+                    // Request Corr MO Button (only show if engineer and in progress)
+                    if (_currentUser?.role == 'engineer' &&
+                        _ticket?.engineer?.id == _currentUser?.id &&
+                        _ticket?.status == 'in_progress')
+                      Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.red.withOpacity(0.3)),
+                            ),
+                            child: InkWell(
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => RequestCorrMoPage(
+                                      troubleTicketId: widget.ticketId,
+                                      ticketNumber: _ticket?.ticketNumber ?? '',
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: const Text(
+                                      'Permintaan Tambahan',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        fontFamily: 'Poppins',
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Iconsax.add_circle,
+                                      color: Colors.red,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
                         ],
                       ),
                     if (RolePermissions.canUpdateTicketStatus(_currentUser?.role))

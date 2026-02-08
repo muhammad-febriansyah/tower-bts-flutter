@@ -36,6 +36,17 @@ class MainBottomNavigation extends StatelessWidget {
       ),
     ];
 
+    // Add maintenance menu only for engineer
+    if (userRole == 'engineer') {
+      items.add(
+        BottomNavigationBarItem(
+          icon: Icon(Iconsax.setting_2, size: 24.sp),
+          activeIcon: Icon(Iconsax.setting_2, size: 24.sp),
+          label: 'Maintenance',
+        ),
+      );
+    }
+
     // Add budget menu only for engineer & mitra
     if (RolePermissions.canAccessBudgetRequests(userRole)) {
       items.add(
@@ -58,51 +69,105 @@ class MainBottomNavigation extends StatelessWidget {
       );
     }
 
-    // Profile always last
-    items.add(
-      BottomNavigationBarItem(
-        icon: Icon(Iconsax.user, size: 24.sp),
-        activeIcon: Icon(Iconsax.user, size: 24.sp),
-        label: AppStrings.profile,
-      ),
-    );
+    // Profile removed - now in app bar
 
     return items;
   }
 
   @override
   Widget build(BuildContext context) {
+    final items = _buildNavItems();
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20.r),
-          topRight: Radius.circular(20.r),
+          topLeft: Radius.circular(24.r),
+          topRight: Radius.circular(24.r),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20.r),
-          topRight: Radius.circular(20.r),
-        ),
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          currentIndex: currentIndex,
-          onTap: onTap,
-          selectedItemColor: AppColors.primary,
-          unselectedItemColor: Colors.grey.shade400,
-          backgroundColor: Colors.white,
-          elevation: 0,
-          selectedFontSize: 12,
-          unselectedFontSize: 11,
-          items: _buildNavItems(),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 4.h, horizontal: 8.w),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final isSelected = currentIndex == index;
+
+              return Expanded(
+                child: InkWell(
+                  onTap: () => onTap(index),
+                  borderRadius: BorderRadius.circular(14.r),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(vertical: 4.h),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Icon with animated container
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          padding: EdgeInsets.all(isSelected ? 10.r : 6.r),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.primary
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(14.r),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: AppColors.primary.withValues(alpha: 0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ]
+                                : [],
+                          ),
+                          child: Icon(
+                            isSelected
+                                ? (item.activeIcon as Icon).icon
+                                : (item.icon as Icon).icon,
+                            color: isSelected
+                                ? Colors.white
+                                : Colors.grey.shade400,
+                            size: 22.sp,
+                          ),
+                        ),
+                        SizedBox(height: 3.h),
+                        // Label
+                        AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 200),
+                          style: TextStyle(
+                            color: isSelected
+                                ? AppColors.primary
+                                : Colors.grey.shade400,
+                            fontSize: isSelected ? 11.sp : 10.sp,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                          ),
+                          child: Text(
+                            item.label ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
         ),
       ),
     );

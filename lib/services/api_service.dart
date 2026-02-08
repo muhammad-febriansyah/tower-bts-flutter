@@ -6,6 +6,20 @@ import '../config/api_config.dart';
 
 class ApiService {
   static const _tokenKey = 'auth_token';
+  static const _appVersionKey = 'app_version';
+  static const _currentAppVersion = '2.0.0';
+
+  // Check and migrate session on app version change
+  static Future<void> migrateSessionIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedVersion = prefs.getString(_appVersionKey);
+
+    // If version is different or not set, clear old session
+    if (savedVersion != _currentAppVersion) {
+      await prefs.remove(_tokenKey);
+      await prefs.setString(_appVersionKey, _currentAppVersion);
+    }
+  }
 
   // Save token
   static Future<void> saveToken(String token) async {
@@ -519,6 +533,38 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> uploadBudgetRealizationPhotos({
+    required int budgetRequestId,
+    required List<File> photos,
+  }) async {
+    try {
+      final url = Uri.parse(ApiConfig.fullUrl('${ApiConfig.budgetRequests}/$budgetRequestId/photos'));
+      final token = await getToken();
+
+      var request = http.MultipartRequest('POST', url);
+
+      // Add headers
+      request.headers['Accept'] = 'application/json';
+      if (token != null && token.isNotEmpty) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+
+      // Add photos
+      for (var photo in photos) {
+        request.files.add(
+          await http.MultipartFile.fromPath('photos[]', photo.path),
+        );
+      }
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      return _handleResponse(response);
+    } catch (e) {
+      return {'error': true, 'message': 'Upload error: ${e.toString()}'};
+    }
+  }
+
   // MBP APIs
   static Future<Map<String, dynamic>> getMbpRequests({String? status}) async {
     String endpoint = ApiConfig.mbpRequests;
@@ -679,5 +725,159 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getShoppingListRegionals() async {
     return await get('/shopping-list-items/regionals');
+  }
+
+  // ========================================
+  // Maintenance Orders APIs
+  // ========================================
+
+  static Future<Map<String, dynamic>> getMaintenanceOrders({
+    String? status,
+    String? geofencingStatus,
+  }) async {
+    String endpoint = '/maintenance-orders';
+    List<String> params = [];
+
+    if (status != null && status.isNotEmpty) {
+      params.add('status=$status');
+    }
+    if (geofencingStatus != null && geofencingStatus.isNotEmpty) {
+      params.add('geofencing_status=$geofencingStatus');
+    }
+
+    if (params.isNotEmpty) {
+      endpoint += '?${params.join('&')}';
+    }
+
+    return await get(endpoint);
+  }
+
+  static Future<Map<String, dynamic>> getMaintenanceOrderDetail(int id) async {
+    return await get('/maintenance-orders/$id');
+  }
+
+  static Future<Map<String, dynamic>> getMaintenanceOrderDashboard() async {
+    return await get('/maintenance-orders/dashboard');
+  }
+
+  static Future<Map<String, dynamic>> startMaintenanceWork(
+    int id,
+    String workStartTime,
+    double? distanceFromSite,
+  ) async {
+    return await post('/maintenance-orders/$id/start-work', {
+      'work_start_time': workStartTime,
+      if (distanceFromSite != null) 'distance_from_site': distanceFromSite,
+    });
+  }
+
+  static Future<Map<String, dynamic>> uploadMaintenanceEvidence(
+    int orderId,
+    int sowItemId,
+    String evidenceType,
+    File file, {
+    String? description,
+  }) async {
+    return await uploadFile(
+      '/maintenance-orders/$orderId/evidence',
+      {'file': file},
+      fields: {
+        'sow_item_id': sowItemId.toString(),
+        'evidence_type': evidenceType,
+        if (description != null && description.isNotEmpty) 'description': description,
+      },
+    );
+  }
+
+  static Future<Map<String, dynamic>> updateSowItemStatus(
+    int orderId,
+    int sowItemId,
+    bool isCompleted,
+  ) async {
+    return await put('/maintenance-orders/$orderId/sow-items/$sowItemId', {
+      'is_completed': isCompleted,
+    });
+  }
+
+  static Future<Map<String, dynamic>> completeMaintenanceOrder(
+    int id,
+    String workEndTime, {
+    String? notes,
+  }) async {
+    return await post('/maintenance-orders/$id/complete', {
+      'work_end_time': workEndTime,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    });
+  }
+
+  // ========================================
+  // Request Corrective MO APIs
+  // ========================================
+
+  static Future<Map<String, dynamic>> getRequestCorrMo({
+    String? status,
+    String? category,
+  }) async {
+    String endpoint = '/request-corr-mo';
+    List<String> params = [];
+
+    if (status != null && status.isNotEmpty) {
+      params.add('status=$status');
+    }
+    if (category != null && category.isNotEmpty) {
+      params.add('category=$category');
+    }
+
+    if (params.isNotEmpty) {
+      endpoint += '?${params.join('&')}';
+    }
+
+    return await get(endpoint);
+  }
+
+  static Future<Map<String, dynamic>> getRequestCorrMoDetail(int id) async {
+    return await get('/request-corr-mo/$id');
+  }
+
+  static Future<Map<String, dynamic>> getRequestCorrMoByTroubleTicket(int troubleTicketId) async {
+    return await get('/request-corr-mo/trouble-ticket/$troubleTicketId');
+  }
+
+  static Future<Map<String, dynamic>> createRequestCorrMo(
+    int troubleTicketId,
+    String category,
+    String ticketType, {
+    String? description,
+    File? photo,
+  }) async {
+    if (photo != null) {
+      return await uploadFile(
+        '/request-corr-mo',
+        {'photo': photo},
+        fields: {
+          'trouble_ticket_id': troubleTicketId.toString(),
+          'category': category,
+          'ticket_type': ticketType,
+          if (description != null && description.isNotEmpty) 'description': description,
+        },
+      );
+    } else {
+      return await post('/request-corr-mo', {
+        'trouble_ticket_id': troubleTicketId,
+        'category': category,
+        'ticket_type': ticketType,
+        if (description != null && description.isNotEmpty) 'description': description,
+      });
+    }
+  }
+
+  static Future<Map<String, dynamic>> uploadRequestCorrMoPhoto(
+    int id,
+    File photo,
+  ) async {
+    return await uploadFile(
+      '/request-corr-mo/$id/photo',
+      {'photo': photo},
+    );
   }
 }

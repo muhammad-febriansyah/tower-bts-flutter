@@ -17,6 +17,7 @@ import 'budget_requests_page.dart';
 import 'mbp_page.dart';
 import 'profile_page.dart';
 import 'notifications_page.dart';
+import 'maintenance_orders_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -31,6 +32,7 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic>? _ticketStats;
   bool _isLoading = true;
   int _unreadNotificationsCount = 0;
+  final GlobalKey<TicketsPageState> _ticketsPageKey = GlobalKey<TicketsPageState>();
 
   @override
   void initState() {
@@ -117,14 +119,20 @@ class _HomePageState extends State<HomePage> {
     final hasMbpAccess = RolePermissions.canAccessMbp(_user?.role);
 
     // Dynamic page mapping based on role
-    // Engineer/Mitra: 0=Dashboard, 1=Tickets, 2=Sites, 3=Budget, 4=MBP, 5=Profile
-    // Others with MBP: 0=Dashboard, 1=Tickets, 2=Sites, 3=MBP, 4=Profile
+    // Engineer/Mitra: 0=Dashboard, 1=Tickets, 2=Sites, 3=Maintenance, 4=Budget, 5=MBP
+    // Others with MBP: 0=Dashboard, 1=Tickets, 2=Sites, 3=Maintenance, 4=MBP
+    // Profile removed - now accessible via app bar icon
 
     List<Widget> pages = [
       _buildDashboard(),
-      const TicketsPage(),
+      TicketsPage(key: _ticketsPageKey),
       const SitesPage(),
     ];
+
+    // Add Maintenance Orders for engineers
+    if (_user?.role == 'engineer') {
+      pages.add(const MaintenanceOrdersPage());
+    }
 
     if (hasBudgetAccess) {
       pages.add(const BudgetRequestsPage());
@@ -134,7 +142,7 @@ class _HomePageState extends State<HomePage> {
       pages.add(const MbpPage());
     }
 
-    pages.add(const ProfilePage());
+    // Profile removed from bottom nav
 
     if (_selectedIndex >= 0 && _selectedIndex < pages.length) {
       return pages[_selectedIndex];
@@ -153,6 +161,11 @@ class _HomePageState extends State<HomePage> {
       AppStrings.sites,
     ];
 
+    // Add Maintenance Orders for engineers
+    if (_user?.role == 'engineer') {
+      titles.add('Maintenance');
+    }
+
     if (hasBudgetAccess) {
       titles.add(AppStrings.budget);
     }
@@ -161,7 +174,7 @@ class _HomePageState extends State<HomePage> {
       titles.add('MBP');
     }
 
-    titles.add(AppStrings.profile);
+    // Profile removed from bottom nav - now in app bar
 
     return titles;
   }
@@ -183,6 +196,15 @@ class _HomePageState extends State<HomePage> {
         foregroundColor: Colors.white,
         elevation: 2,
         actions: [
+          // Show refresh button only on Tickets page (index 1)
+          if (safeIndex == 1)
+            IconButton(
+              icon: const Icon(Iconsax.refresh),
+              onPressed: () {
+                _ticketsPageKey.currentState?.refreshTickets();
+              },
+              tooltip: 'Refresh',
+            ),
           Stack(
             children: [
               IconButton(
@@ -227,6 +249,34 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
             ],
+          ),
+          const SizedBox(width: 8),
+          // Profile Icon
+          IconButton(
+            icon: CircleAvatar(
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              radius: 16,
+              child: Text(
+                _user?.name.substring(0, 1).toUpperCase() ?? 'U',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ProfilePage(),
+                ),
+              ).then((_) {
+                // Reload data when back from profile page
+                _loadData();
+              });
+            },
+            tooltip: 'Profile',
           ),
         ],
       ),
