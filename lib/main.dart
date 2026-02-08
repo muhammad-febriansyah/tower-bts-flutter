@@ -3,12 +3,16 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'pages/splash_page.dart';
+import 'services/api_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Load environment variables
   await dotenv.load(fileName: ".env");
+
+  // Clear old session if app version changed
+  await ApiService.migrateSessionIfNeeded();
 
   runApp(const TowerBTSApp());
 }
@@ -75,23 +79,17 @@ class _InitialScreenState extends State<InitialScreen> {
   }
 
   Future<void> _checkLoginAndNavigate() async {
-    // Show splash screen first
     await Future.delayed(const Duration(milliseconds: 500));
 
     if (!mounted) return;
 
-    // Navigate to splash page
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const SplashPage()),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const SplashPage()));
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }

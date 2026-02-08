@@ -119,13 +119,22 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading && _user == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
-      body: RefreshIndicator(
+      appBar: AppBar(
+        title: const Text('Profil'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Iconsax.arrow_left_2),
+          onPressed: () => Navigator.pop(context),
+          tooltip: 'Kembali',
+        ),
+      ),
+      body: _isLoading && _user == null
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
         onRefresh: _loadProfile,
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(
@@ -169,8 +178,8 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               SizedBox(height: 24.h),
 
-              // Budget Balance Card (for engineers only)
-              if (_user?.role == 'engineer') ...[
+              // Budget Balance Card (for engineers and mitra only)
+              if (_user?.role == 'engineer' || _user?.role == 'mitra') ...[
                 _buildSectionTitle('Saldo Budget'),
                 SizedBox(height: 12.h),
                 Container(

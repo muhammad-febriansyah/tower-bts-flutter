@@ -5,6 +5,7 @@ class BudgetRequestDetail {
   final String? specification;
   final List<String>? photos;
   final double? estimatedCost;
+  final double? approvedAmount;
   final String status;
   final String? notes;
   final Requester? requester;
@@ -21,6 +22,7 @@ class BudgetRequestDetail {
     this.specification,
     this.photos,
     this.estimatedCost,
+    this.approvedAmount,
     required this.status,
     this.notes,
     this.requester,
@@ -39,6 +41,7 @@ class BudgetRequestDetail {
       specification: json['specification'] ?? json['detil_spesifikasi'],
       photos: json['photos'] != null ? List<String>.from(json['photos']) : null,
       estimatedCost: json['estimated_cost'] != null ? double.tryParse(json['estimated_cost'].toString()) : null,
+      approvedAmount: json['approved_amount'] != null ? double.tryParse(json['approved_amount'].toString()) : null,
       status: json['status'],
       notes: json['notes'],
       requester: json['requester'] != null ? Requester.fromJson(json['requester']) : null,

@@ -217,13 +217,30 @@ class _LumpsumRequestPageState extends State<LumpsumRequestPage> {
                                 'Regional: ${item.regional}',
                                 style: TextStyle(fontSize: 12.sp),
                               ),
-                              SizedBox(height: 2.h),
-                              Text(
-                                'Rp ${_formatCurrency(item.nilaiPerBulan)}/bulan',
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF2E7D32),
+                              SizedBox(height: 6.h),
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 3.h),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(4.r),
+                                  border: Border.all(
+                                    color: const Color(0xFF2E7D32).withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Iconsax.chart_2, color: const Color(0xFF2E7D32), size: 12.sp),
+                                    SizedBox(width: 4.w),
+                                    Text(
+                                      'Harga DB: Rp ${_formatCurrency(item.nilaiPerBulan)}/bln',
+                                      style: TextStyle(
+                                        fontSize: 11.sp,
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFF2E7D32),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],

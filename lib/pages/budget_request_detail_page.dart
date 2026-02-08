@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 import '../models/budget_request.dart';
 import '../config/api_config.dart';
@@ -17,6 +19,10 @@ class BudgetRequestDetailPage extends StatefulWidget {
 class _BudgetRequestDetailPageState extends State<BudgetRequestDetailPage> {
   BudgetRequestDetail? _request;
   bool _isLoading = true;
+  bool _isUploading = false;
+  String? _errorMessage;
+  final _imagePicker = ImagePicker();
+  final List<File> _selectedPhotos = [];
 
   @override
   void initState() {
@@ -25,7 +31,10 @@ class _BudgetRequestDetailPageState extends State<BudgetRequestDetailPage> {
   }
 
   Future<void> _loadRequest() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
       final result = await ApiService.getBudgetRequestDetail(widget.requestId);
@@ -33,9 +42,9 @@ class _BudgetRequestDetailPageState extends State<BudgetRequestDetailPage> {
       if (!mounted) return;
 
       if (result['error']) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'] ?? 'Failed to load budget request')),
-        );
+        setState(() {
+          _errorMessage = result['message'] ?? 'Failed to load budget request';
+        });
       } else {
         setState(() {
           _request = BudgetRequestDetail.fromJson(result['data']['budget_request']);
@@ -43,9 +52,9 @@ class _BudgetRequestDetailPageState extends State<BudgetRequestDetailPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
+      setState(() {
+        _errorMessage = 'Error: ${e.toString()}';
+      });
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -85,6 +94,79 @@ class _BudgetRequestDetailPageState extends State<BudgetRequestDetailPage> {
     return '$dayName, ${date.day} $monthName ${date.year}';
   }
 
+  Future<void> _pickImages() async {
+    try {
+      final List<XFile> images = await _imagePicker.pickMultiImage();
+
+      if (images.isNotEmpty) {
+        setState(() {
+          _selectedPhotos.addAll(images.map((xFile) => File(xFile.path)));
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error memilih foto: ${e.toString()}')),
+      );
+    }
+  }
+
+  void _removePhoto(int index) {
+    setState(() {
+      _selectedPhotos.removeAt(index);
+    });
+  }
+
+  Future<void> _uploadPhotos() async {
+    if (_selectedPhotos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Silakan pilih foto terlebih dahulu'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isUploading = true);
+
+    try {
+      final result = await ApiService.uploadBudgetRealizationPhotos(
+        budgetRequestId: widget.requestId,
+        photos: _selectedPhotos,
+      );
+
+      if (!mounted) return;
+
+      if (result['error']) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Gagal mengupload foto'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Foto berhasil diupload'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        setState(() {
+          _selectedPhotos.clear();
+        });
+        _loadRequest(); // Reload to show uploaded photos
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -102,7 +184,59 @@ class _BudgetRequestDetailPageState extends State<BudgetRequestDetailPage> {
       ),
       body: _isLoading && _request == null
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
+          : _errorMessage != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Iconsax.lock,
+                            size: 48,
+                            color: Colors.red,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          _errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: _loadRequest,
+                          icon: const Icon(Iconsax.refresh),
+                          label: const Text('Coba Lagi'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Kembali'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
               onRefresh: _loadRequest,
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -259,6 +393,89 @@ class _BudgetRequestDetailPageState extends State<BudgetRequestDetailPage> {
                                 ],
                               ),
                             ),
+                            // Anggaran Disetujui - tampilkan jika ada
+                            if (_request?.approvedAmount != null) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF2E7D32),
+                                      Color(0xFF1B5E20),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: const Icon(
+                                            Iconsax.tick_circle,
+                                            color: Colors.white,
+                                            size: 20,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Text(
+                                          'Anggaran Disetujui',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      _formatCurrency(_request?.approvedAmount),
+                                      style: const TextStyle(
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Iconsax.wallet_add,
+                                            color: Colors.white,
+                                            size: 14,
+                                          ),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            'Masuk ke Saldo Engineer',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -430,7 +647,7 @@ class _BudgetRequestDetailPageState extends State<BudgetRequestDetailPage> {
                                   ),
                                   const SizedBox(width: 12),
                                   Text(
-                                    'Foto Pendukung (${_request!.photos!.length})',
+                                    'Foto Realisasi (${_request!.photos!.length})',
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
@@ -501,6 +718,196 @@ class _BudgetRequestDetailPageState extends State<BudgetRequestDetailPage> {
                         ),
                       ),
                     ],
+
+                    // Upload Photos Section (only show if status is approved)
+                    if (_request?.status.toLowerCase() == 'approved') ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.green.withValues(alpha: 0.3), width: 2),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Iconsax.camera,
+                                      size: 20,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Upload Laporan Realisasi',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        SizedBox(height: 4),
+                                        Text(
+                                          'Upload foto bukti pengerjaan sesuai masing-masing item yang diajukan',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              // Instructions box
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Iconsax.info_circle, color: Colors.amber, size: 18),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Pastikan foto yang diupload jelas dan menunjukkan bukti penyelesaian pekerjaan',
+                                        style: TextStyle(fontSize: 12, color: Colors.black87),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Selected photos preview
+                              if (_selectedPhotos.isNotEmpty) ...[
+                                GridView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    crossAxisSpacing: 8,
+                                    mainAxisSpacing: 8,
+                                    childAspectRatio: 1,
+                                  ),
+                                  itemCount: _selectedPhotos.length,
+                                  itemBuilder: (context, index) {
+                                    return Stack(
+                                      children: [
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(12),
+                                            child: Image.file(
+                                              _selectedPhotos[index],
+                                              fit: BoxFit.cover,
+                                              width: double.infinity,
+                                              height: double.infinity,
+                                            ),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          top: 4,
+                                          right: 4,
+                                          child: GestureDetector(
+                                            onTap: () => _removePhoto(index),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              decoration: const BoxDecoration(
+                                                color: Colors.red,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: const Icon(
+                                                Icons.close,
+                                                color: Colors.white,
+                                                size: 16,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+
+                              // Pick photos button
+                              OutlinedButton.icon(
+                                onPressed: _pickImages,
+                                icon: const Icon(Iconsax.gallery_add, size: 20),
+                                label: Text(
+                                  _selectedPhotos.isEmpty ? 'Pilih Foto' : 'Tambah Foto Lainnya',
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.green,
+                                  side: const BorderSide(color: Colors.green),
+                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+
+                              // Upload button
+                              if (_selectedPhotos.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _isUploading ? null : _uploadPhotos,
+                                    icon: _isUploading
+                                        ? const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                            ),
+                                          )
+                                        : const Icon(Iconsax.cloud_add, size: 20),
+                                    label: Text(
+                                      _isUploading ? 'Mengupload...' : 'Upload Foto (${_selectedPhotos.length})',
+                                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 16),
                     Container(
                       decoration: BoxDecoration(
@@ -858,14 +1265,14 @@ class _BudgetRequestDetailPageState extends State<BudgetRequestDetailPage> {
                                 child: Row(
                                   children: [
                                     Icon(
-                                      Iconsax.info_circle,
+                                      Iconsax.wallet_add_1,
                                       size: 16,
                                       color: Colors.white.withValues(alpha: 0.8),
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        'Budget telah berhasil ditransfer ke rekening engineer',
+                                        'Dana telah ditambahkan ke saldo engineer',
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: Colors.white.withValues(alpha: 0.9),

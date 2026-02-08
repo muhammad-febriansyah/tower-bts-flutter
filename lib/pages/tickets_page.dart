@@ -13,10 +13,10 @@ class TicketsPage extends StatefulWidget {
   const TicketsPage({super.key});
 
   @override
-  State<TicketsPage> createState() => _TicketsPageState();
+  State<TicketsPage> createState() => TicketsPageState();
 }
 
-class _TicketsPageState extends State<TicketsPage> {
+class TicketsPageState extends State<TicketsPage> {
   List<TroubleTicket> _tickets = [];
   bool _isLoading = true;
   String? _selectedStatus;
@@ -358,6 +358,11 @@ class _TicketsPageState extends State<TicketsPage> {
       default:
         return Colors.grey;
     }
+  }
+
+  // Public method to refresh tickets (can be called from parent)
+  void refreshTickets() {
+    _loadTickets();
   }
 
   @override

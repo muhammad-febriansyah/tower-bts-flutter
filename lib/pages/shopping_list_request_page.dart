@@ -416,15 +416,49 @@ class _ShoppingListRequestPageState extends State<ShoppingListRequestPage> {
                       ),
                       SizedBox(height: 16.h),
 
-                      // Price Detail
+                      // Price Detail (Harga Pembanding)
                       Container(
                         padding: EdgeInsets.all(16.w),
                         decoration: BoxDecoration(
                           color: Colors.grey.shade50,
                           borderRadius: BorderRadius.circular(12.r),
+                          border: Border.all(
+                            color: const Color(0xFF2E7D32).withValues(alpha: 0.3),
+                            width: 1,
+                          ),
                         ),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Header with badge
+                            Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2E7D32),
+                                    borderRadius: BorderRadius.circular(6.r),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Iconsax.chart_2, color: Colors.white, size: 14.sp),
+                                      SizedBox(width: 4.w),
+                                      Text(
+                                        'HARGA STANDAR DATABASE',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10.sp,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 12.h),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -451,7 +485,7 @@ class _ShoppingListRequestPageState extends State<ShoppingListRequestPage> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'Total:',
+                                  'Total per ${item.satuan}:',
                                   style: TextStyle(
                                     fontSize: 16.sp,
                                     fontWeight: FontWeight.bold,

@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -24,6 +26,18 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Kami memerlukan akses kamera untuk mengambil foto asset, ticket, dan bukti realisasi budget</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Kami memerlukan akses lokasi untuk menampilkan lokasi Anda di dashboard, mencatat posisi GPS saat realisasi budget dan dokumentasi MBP</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Kami memerlukan akses lokasi untuk menampilkan lokasi Anda di dashboard, mencatat posisi GPS saat realisasi budget dan dokumentasi MBP</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Kami memerlukan akses untuk menyimpan foto ke galeri</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Kami memerlukan akses galeri untuk memilih foto asset, ticket, dan bukti realisasi budget</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -41,23 +55,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-
-	<!-- Location Permissions (Required for Budget Realisasi GPS Tracking & Auto Location Detection) -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Kami memerlukan akses lokasi untuk menampilkan lokasi Anda di dashboard, mencatat posisi GPS saat realisasi budget dan dokumentasi MBP</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Kami memerlukan akses lokasi untuk menampilkan lokasi Anda di dashboard, mencatat posisi GPS saat realisasi budget dan dokumentasi MBP</string>
-
-	<!-- Camera & Photo Library Permissions (Required for Photo Upload) -->
-	<key>NSCameraUsageDescription</key>
-	<string>Kami memerlukan akses kamera untuk mengambil foto asset, ticket, dan bukti realisasi budget</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Kami memerlukan akses galeri untuk memilih foto asset, ticket, dan bukti realisasi budget</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Kami memerlukan akses untuk menyimpan foto ke galeri</string>
 </dict>
 </plist>

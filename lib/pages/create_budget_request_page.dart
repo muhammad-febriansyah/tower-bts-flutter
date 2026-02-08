@@ -1,12 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:intl/intl.dart';
-import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
-import '../models/trouble_ticket.dart';
 
 class CreateBudgetRequestPage extends StatefulWidget {
   const CreateBudgetRequestPage({super.key});
@@ -18,53 +14,25 @@ class CreateBudgetRequestPage extends StatefulWidget {
 class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
   final _formKey = GlobalKey<FormState>();
   final _specificationController = TextEditingController();
-  final _costController = TextEditingController();
   final _quantityController = TextEditingController(text: '1');
-  final _imagePicker = ImagePicker();
 
-  // Request type: 'ticket', 'lumpsum', or 'shopping_list'
-  String _requestType = 'ticket';
+  // Request type: 'lumpsum' or 'shopping_list'
+  String _requestType = 'lumpsum';
 
-  // Ticket-based request
-  List<TroubleTicket> _tickets = [];
-  TroubleTicket? _selectedTicket;
-
-  // Lumpsum request
+  // Lumpsum items from API
   List<Map<String, dynamic>> _lumpsumItems = [];
   Map<String, dynamic>? _selectedLumpsumItem;
 
-  // Shopping List request
+  // Shopping List items from API
   List<Map<String, dynamic>> _shoppingListItems = [];
   Map<String, dynamic>? _selectedShoppingItem;
 
+  // Cart items (multiple items before submission)
+  List<Map<String, dynamic>> _cartItems = [];
+
   bool _isLoading = false;
   bool _isLoadingData = true;
-  final List<File> _selectedPhotos = [];
 
-  final _currencyFormatter = NumberFormat.currency(
-    locale: 'id_ID',
-    symbol: '',
-    decimalDigits: 0,
-  );
-
-  void _formatCurrency(String value) {
-    if (value.isEmpty) return;
-
-    final numericValue = value.replaceAll(RegExp(r'[^0-9]'), '');
-
-    if (numericValue.isEmpty) {
-      _costController.clear();
-      return;
-    }
-
-    final number = int.parse(numericValue);
-    final formatted = _currencyFormatter.format(number);
-
-    _costController.value = TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-  }
 
   @override
   void initState() {
@@ -75,7 +43,6 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
   @override
   void dispose() {
     _specificationController.dispose();
-    _costController.dispose();
     _quantityController.dispose();
     super.dispose();
   }
@@ -83,27 +50,10 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
   Future<void> _loadInitialData() async {
     setState(() => _isLoadingData = true);
     await Future.wait([
-      _loadTickets(),
       _loadLumpsumItems(),
       _loadShoppingListItems(),
     ]);
     setState(() => _isLoadingData = false);
-  }
-
-  Future<void> _loadTickets() async {
-    try {
-      final result = await ApiService.getTickets(status: 'in_progress');
-      if (!mounted) return;
-
-      if (!result['error']) {
-        final List<dynamic> ticketsData = result['data']['tickets'] ?? [];
-        setState(() {
-          _tickets = ticketsData.map((json) => TroubleTicket.fromJson(json)).toList();
-        });
-      }
-    } catch (e) {
-      // Silent fail
-    }
   }
 
   Future<void> _loadLumpsumItems() async {
@@ -112,7 +62,7 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
       if (!mounted) return;
 
       if (!result['error']) {
-        final List<dynamic> itemsData = result['data'] ?? [];
+        final List<dynamic> itemsData = result['data']['data'] ?? [];
         setState(() {
           _lumpsumItems = itemsData.map((item) => Map<String, dynamic>.from(item)).toList();
         });
@@ -130,7 +80,7 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
       if (!mounted) return;
 
       if (!result['error']) {
-        final List<dynamic> itemsData = result['data'] ?? [];
+        final List<dynamic> itemsData = result['data']['data'] ?? [];
         setState(() {
           _shoppingListItems = itemsData.map((item) => Map<String, dynamic>.from(item)).toList();
         });
@@ -142,43 +92,10 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
     }
   }
 
-  Future<void> _pickImages() async {
-    try {
-      final List<XFile> images = await _imagePicker.pickMultiImage();
-
-      if (images.isNotEmpty) {
-        setState(() {
-          _selectedPhotos.addAll(images.map((xFile) => File(xFile.path)));
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error memilih foto: ${e.toString()}')),
-      );
-    }
-  }
-
-  void _removePhoto(int index) {
-    setState(() {
-      _selectedPhotos.removeAt(index);
-    });
-  }
-
-  Future<void> _submitRequest() async {
+  void _addToCart() {
     if (!_formKey.currentState!.validate()) return;
 
     // Validation based on request type
-    if (_requestType == 'ticket' && _selectedTicket == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Silakan pilih tiket terlebih dahulu'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
     if (_requestType == 'lumpsum' && _selectedLumpsumItem == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -199,52 +116,112 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
       return;
     }
 
+    // Add to cart
+    setState(() {
+      if (_requestType == 'lumpsum') {
+        _cartItems.add({
+          'type': 'lumpsum',
+          'item_id': _selectedLumpsumItem!['id'],
+          'item_name': _selectedLumpsumItem!['description'],
+          'regional': _selectedLumpsumItem!['regional'],
+          'quantity': int.tryParse(_quantityController.text) ?? 1,
+          'specification': _specificationController.text.trim(),
+        });
+      } else {
+        _cartItems.add({
+          'type': 'shopping_list',
+          'item_id': _selectedShoppingItem!['id'],
+          'item_name': '${_selectedShoppingItem!['kode_cor']} - ${_selectedShoppingItem!['deskripsi_pekerjaan']}',
+          'regional': _selectedShoppingItem!['regional'],
+          'quantity': int.tryParse(_quantityController.text) ?? 1,
+          'specification': _specificationController.text.isNotEmpty ? _specificationController.text.trim() : null,
+        });
+      }
+
+      // Reset form
+      _selectedLumpsumItem = null;
+      _selectedShoppingItem = null;
+      _specificationController.clear();
+      _quantityController.text = '1';
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Item berhasil ditambahkan ke keranjang'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _removeFromCart(int index) {
+    setState(() {
+      _cartItems.removeAt(index);
+    });
+  }
+
+  Future<void> _submitRequest() async {
+    // Validation: cart must not be empty
+    if (_cartItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Keranjang kosong! Silakan tambahkan item terlebih dahulu'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      late Map<String, dynamic> result;
+      int successCount = 0;
+      int failCount = 0;
 
-      if (_requestType == 'ticket') {
-        result = await ApiService.createBudgetRequest(
-          troubleTicketId: _selectedTicket!.id,
-          specification: _specificationController.text.trim(),
-          estimatedCost: double.parse(_costController.text.replaceAll('.', '').replaceAll(',', '')),
-          photos: _selectedPhotos.isNotEmpty ? _selectedPhotos : null,
-        );
-      } else if (_requestType == 'lumpsum') {
-        result = await ApiService.createLumpsumBudgetRequest(
-          lumpsumItemId: _selectedLumpsumItem!['id'],
-          quantity: int.tryParse(_quantityController.text) ?? 1,
-          specification: _specificationController.text.trim(),
-          photos: _selectedPhotos.isNotEmpty ? _selectedPhotos : null,
-        );
-      } else {
-        // shopping_list
-        result = await ApiService.createShoppingListBudgetRequest(
-          shoppingListItemId: _selectedShoppingItem!['id'],
-          quantity: int.tryParse(_quantityController.text) ?? 1,
-          specification: _specificationController.text.isNotEmpty ? _specificationController.text.trim() : null,
-          photos: _selectedPhotos.isNotEmpty ? _selectedPhotos : null,
-        );
+      // Submit each cart item
+      for (var item in _cartItems) {
+        late Map<String, dynamic> result;
+
+        if (item['type'] == 'lumpsum') {
+          result = await ApiService.createLumpsumBudgetRequest(
+            lumpsumItemId: item['item_id'],
+            quantity: item['quantity'],
+            specification: item['specification'],
+            photos: null, // No photos during submission
+          );
+        } else {
+          // shopping_list
+          result = await ApiService.createShoppingListBudgetRequest(
+            shoppingListItemId: item['item_id'],
+            quantity: item['quantity'],
+            specification: item['specification'],
+            photos: null, // No photos during submission
+          );
+        }
+
+        if (!result['error']) {
+          successCount++;
+        } else {
+          failCount++;
+        }
       }
 
       if (!mounted) return;
 
-      if (result['error']) {
+      if (failCount == 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message'] ?? 'Gagal membuat permintaan anggaran'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Permintaan anggaran berhasil dibuat'),
+            content: Text('Berhasil mengajukan $successCount permintaan anggaran'),
             backgroundColor: Colors.green,
           ),
         );
         Navigator.pop(context, true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$successCount berhasil, $failCount gagal'),
+            backgroundColor: Colors.orange,
+          ),
+        );
       }
     } catch (e) {
       if (!mounted) return;
@@ -281,46 +258,62 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
                     SizedBox(height: 20.h),
 
                     // Dynamic form based on request type
-                    if (_requestType == 'ticket') ..._buildTicketForm(),
                     if (_requestType == 'lumpsum') ..._buildLumpsumForm(),
                     if (_requestType == 'shopping_list') ..._buildShoppingListForm(),
 
                     SizedBox(height: 24.h),
 
-                    // Photo Upload Section
-                    _buildPhotoSection(),
-
-                    SizedBox(height: 32.h),
-
-                    // Submit Button
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _submitRequest,
+                    // Add to Cart Button
+                    ElevatedButton.icon(
+                      onPressed: _addToCart,
+                      icon: Icon(Iconsax.shopping_cart, size: 20.sp),
+                      label: Text(
+                        'Tambah ke Keranjang',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2E7D32),
+                        foregroundColor: Colors.white,
                         padding: EdgeInsets.symmetric(vertical: 16.h),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12.r),
                         ),
                       ),
-                      child: _isLoading
-                          ? SizedBox(
-                              width: 20.w,
-                              height: 20.h,
-                              child: const CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : Text(
-                              'Kirim Permintaan',
-                              style: TextStyle(
-                                fontSize: 16.sp,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Poppins',
-                                color: Colors.white,
-                              ),
-                            ),
                     ),
+
+                    SizedBox(height: 24.h),
+
+                    // Cart Section
+                    if (_cartItems.isNotEmpty) ...[
+                      _buildCartSection(),
+                      SizedBox(height: 24.h),
+
+                      // Submit All Button
+                      ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _submitRequest,
+                        icon: Icon(Iconsax.tick_circle, size: 20.sp),
+                        label: Text(
+                          'Kirim Semua Permintaan (${_cartItems.length})',
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(vertical: 16.h),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -359,15 +352,6 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
             children: [
               Expanded(
                 child: _buildTypeButton(
-                  'ticket',
-                  'Dari Tiket',
-                  Iconsax.ticket,
-                  Colors.blue,
-                ),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: _buildTypeButton(
                   'lumpsum',
                   'Lumpsum',
                   Iconsax.dollar_circle,
@@ -398,11 +382,9 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
         setState(() {
           _requestType = type;
           // Reset selections
-          _selectedTicket = null;
           _selectedLumpsumItem = null;
           _selectedShoppingItem = null;
           _specificationController.clear();
-          _costController.clear();
           _quantityController.text = '1';
         });
       },
@@ -441,187 +423,6 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
     );
   }
 
-  List<Widget> _buildTicketForm() {
-    return [
-      Container(
-        padding: EdgeInsets.all(20.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16.r),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Pilih Tiket',
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'Poppins',
-                color: Colors.black87,
-              ),
-            ),
-            SizedBox(height: 12.h),
-            if (_tickets.isEmpty)
-              Container(
-                padding: EdgeInsets.all(16.w),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(12.r),
-                  border: Border.all(color: Colors.orange.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Iconsax.info_circle, color: Colors.orange.shade700, size: 20.sp),
-                    SizedBox(width: 12.w),
-                    Expanded(
-                      child: Text(
-                        'Tidak ada tiket dalam proses',
-                        style: TextStyle(
-                          fontSize: 13.sp,
-                          fontFamily: 'Poppins',
-                          color: Colors.orange.shade900,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              DropdownButtonFormField<TroubleTicket>(
-                value: _selectedTicket,
-                decoration: InputDecoration(
-                  hintText: 'Pilih tiket',
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                    borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
-                  ),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
-                ),
-                items: _tickets.map((ticket) {
-                  return DropdownMenuItem<TroubleTicket>(
-                    value: ticket,
-                    child: Text(
-                      '${ticket.ticketNumber} - ${ticket.title}',
-                      style: TextStyle(fontSize: 13.sp, fontFamily: 'Poppins'),
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() => _selectedTicket = value);
-                },
-              ),
-            SizedBox(height: 20.h),
-
-            // Specification
-            Text(
-              'Detail Spesifikasi',
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'Poppins',
-                color: Colors.black87,
-              ),
-            ),
-            SizedBox(height: 12.h),
-            TextFormField(
-              controller: _specificationController,
-              maxLines: 4,
-              style: TextStyle(fontSize: 13.sp, fontFamily: 'Poppins'),
-              decoration: InputDecoration(
-                hintText: 'Jelaskan detail kebutuhan...',
-                hintStyle: TextStyle(fontSize: 13.sp),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                  borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
-                ),
-                contentPadding: EdgeInsets.all(16.w),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Spesifikasi tidak boleh kosong';
-                }
-                return null;
-              },
-            ),
-            SizedBox(height: 20.h),
-
-            // Estimated Cost
-            Text(
-              'Estimasi Biaya (Rp)',
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'Poppins',
-                color: Colors.black87,
-              ),
-            ),
-            SizedBox(height: 12.h),
-            TextFormField(
-              controller: _costController,
-              keyboardType: TextInputType.number,
-              style: TextStyle(fontSize: 13.sp, fontFamily: 'Poppins'),
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                hintText: '0',
-                hintStyle: TextStyle(fontSize: 13.sp),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                prefixIcon: Icon(Iconsax.dollar_circle, color: const Color(0xFF2E7D32), size: 20.sp),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                  borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
-                ),
-                contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
-              ),
-              onChanged: _formatCurrency,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Estimasi biaya tidak boleh kosong';
-                }
-                return null;
-              },
-            ),
-          ],
-        ),
-      ),
-    ];
-  }
 
   List<Widget> _buildLumpsumForm() {
     return [
@@ -679,6 +480,7 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
             else
               DropdownButtonFormField<Map<String, dynamic>>(
                 value: _selectedLumpsumItem,
+                isExpanded: true,
                 decoration: InputDecoration(
                   hintText: 'Pilih item lumpsum',
                   filled: true,
@@ -701,19 +503,16 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
                   return DropdownMenuItem<Map<String, dynamic>>(
                     value: item,
                     child: Text(
-                      '${item['description']} - ${item['regional']}',
+                      item['description'] ?? '',
                       style: TextStyle(fontSize: 13.sp, fontFamily: 'Poppins'),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   );
                 }).toList(),
                 onChanged: (value) {
                   setState(() {
                     _selectedLumpsumItem = value;
-                    // Auto-fill cost
-                    if (value != null) {
-                      final cost = (value['nilai_per_bulan'] ?? 0).toString();
-                      _costController.text = _currencyFormatter.format(double.parse(cost));
-                    }
                   });
                 },
               ),
@@ -741,14 +540,6 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
                     SizedBox(height: 8.h),
                     Text(
                       'Regional: ${_selectedLumpsumItem!['regional']}',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontFamily: 'Poppins',
-                        color: Colors.green.shade900,
-                      ),
-                    ),
-                    Text(
-                      'Nilai/Bulan: Rp ${_currencyFormatter.format(_selectedLumpsumItem!['nilai_per_bulan'] ?? 0)}',
                       style: TextStyle(
                         fontSize: 12.sp,
                         fontFamily: 'Poppins',
@@ -909,6 +700,7 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
             else
               DropdownButtonFormField<Map<String, dynamic>>(
                 value: _selectedShoppingItem,
+                isExpanded: true,
                 decoration: InputDecoration(
                   hintText: 'Pilih item shopping list',
                   filled: true,
@@ -934,17 +726,13 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
                       '${item['kode_cor']} - ${item['deskripsi_pekerjaan']}',
                       style: TextStyle(fontSize: 13.sp, fontFamily: 'Poppins'),
                       overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   );
                 }).toList(),
                 onChanged: (value) {
                   setState(() {
                     _selectedShoppingItem = value;
-                    // Auto-fill cost
-                    if (value != null) {
-                      final cost = (value['harga_total'] ?? 0).toString();
-                      _costController.text = _currencyFormatter.format(double.parse(cost));
-                    }
                   });
                 },
               ),
@@ -990,31 +778,6 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
                       'Satuan: ${_selectedShoppingItem!['satuan']}',
                       style: TextStyle(
                         fontSize: 12.sp,
-                        fontFamily: 'Poppins',
-                        color: Colors.blue.shade900,
-                      ),
-                    ),
-                    Text(
-                      'Harga Material: Rp ${_currencyFormatter.format(_selectedShoppingItem!['harga_material'] ?? 0)}',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontFamily: 'Poppins',
-                        color: Colors.blue.shade900,
-                      ),
-                    ),
-                    Text(
-                      'Harga Jasa: Rp ${_currencyFormatter.format(_selectedShoppingItem!['harga_jasa'] ?? 0)}',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontFamily: 'Poppins',
-                        color: Colors.blue.shade900,
-                      ),
-                    ),
-                    Text(
-                      'Harga Total: Rp ${_currencyFormatter.format(_selectedShoppingItem!['harga_total'] ?? 0)}',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.bold,
                         fontFamily: 'Poppins',
                         color: Colors.blue.shade900,
                       ),
@@ -1111,7 +874,7 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
     ];
   }
 
-  Widget _buildPhotoSection() {
+  Widget _buildCartSection() {
     return Container(
       padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
@@ -1128,77 +891,128 @@ class _CreateBudgetRequestPageState extends State<CreateBudgetRequestPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Foto Pendukung (Opsional)',
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Poppins',
-              color: Colors.black87,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Keranjang Permintaan',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Poppins',
+                  color: Colors.black87,
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  borderRadius: BorderRadius.circular(20.r),
+                ),
+                child: Text(
+                  '${_cartItems.length} Item',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Poppins',
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: 12.h),
+          SizedBox(height: 16.h),
 
-          // Selected photos
-          if (_selectedPhotos.isNotEmpty) ...[
-            Wrap(
-              spacing: 8.w,
-              runSpacing: 8.h,
-              children: List.generate(_selectedPhotos.length, (index) {
-                return Stack(
+          // Cart items list
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _cartItems.length,
+            separatorBuilder: (context, index) => SizedBox(height: 12.h),
+            itemBuilder: (context, index) {
+              final item = _cartItems[index];
+              return Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12.r),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8.r),
-                      child: Image.file(
-                        _selectedPhotos[index],
-                        width: 80.w,
-                        height: 80.h,
-                        fit: BoxFit.cover,
+                    Container(
+                      padding: EdgeInsets.all(8.w),
+                      decoration: BoxDecoration(
+                        color: item['type'] == 'lumpsum' ? Colors.orange.withValues(alpha: 0.1) : Colors.green.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8.r),
+                      ),
+                      child: Icon(
+                        item['type'] == 'lumpsum' ? Iconsax.dollar_circle : Iconsax.shopping_cart,
+                        color: item['type'] == 'lumpsum' ? Colors.orange : Colors.green,
+                        size: 20.sp,
                       ),
                     ),
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: InkWell(
-                        onTap: () => _removePhoto(index),
-                        child: Container(
-                          padding: EdgeInsets.all(4.w),
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
+                    SizedBox(width: 12.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item['item_name'],
+                            style: TextStyle(
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: 'Poppins',
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          child: Icon(
-                            Icons.close,
-                            color: Colors.white,
-                            size: 16.sp,
+                          SizedBox(height: 4.h),
+                          Text(
+                            'Regional: ${item['regional']}',
+                            style: TextStyle(
+                              fontSize: 11.sp,
+                              fontFamily: 'Poppins',
+                              color: Colors.grey.shade600,
+                            ),
                           ),
-                        ),
+                          Text(
+                            'Qty: ${item['quantity']}',
+                            style: TextStyle(
+                              fontSize: 11.sp,
+                              fontFamily: 'Poppins',
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          if (item['specification'] != null && item['specification'].toString().isNotEmpty)
+                            Text(
+                              'Ket: ${item['specification']}',
+                              style: TextStyle(
+                                fontSize: 11.sp,
+                                fontFamily: 'Poppins',
+                                color: Colors.grey.shade600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
                       ),
+                    ),
+                    SizedBox(width: 8.w),
+                    IconButton(
+                      icon: Icon(Iconsax.trash, color: Colors.red, size: 20.sp),
+                      onPressed: () => _removeFromCart(index),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
                   ],
-                );
-              }),
-            ),
-            SizedBox(height: 12.h),
-          ],
-
-          // Add photo button
-          OutlinedButton.icon(
-            onPressed: _pickImages,
-            icon: Icon(Iconsax.gallery_add, size: 20.sp),
-            label: Text(
-              _selectedPhotos.isEmpty ? 'Tambah Foto' : 'Tambah Foto Lainnya',
-              style: TextStyle(fontSize: 13.sp, fontFamily: 'Poppins'),
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF2E7D32),
-              side: const BorderSide(color: Color(0xFF2E7D32)),
-              padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12.r),
-              ),
-            ),
+                ),
+              );
+            },
           ),
+
+          SizedBox(height: 16.h),
         ],
       ),
     );

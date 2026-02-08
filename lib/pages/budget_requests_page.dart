@@ -390,6 +390,100 @@ class _BudgetRequestsPageState extends State<BudgetRequestsPage> {
             : CustomScrollView(
                 physics: const BouncingScrollPhysics(),
                 slivers: [
+                  // Current Balance Card (for engineers/mitra)
+                  if (_currentUser?.role == 'engineer' || _currentUser?.role == 'mitra')
+                    SliverToBoxAdapter(
+                      child: Container(
+                        padding: EdgeInsets.fromLTRB(16.w, 16.w, 16.w, 0),
+                        child: Container(
+                          padding: EdgeInsets.all(16.w),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: _currentUser!.budgetBalance < 500000
+                                  ? [Colors.orange.shade700, Colors.orange.shade900]
+                                  : [const Color(0xFF2E7D32), const Color(0xFF1B5E20)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16.r),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (_currentUser!.budgetBalance < 500000
+                                        ? Colors.orange
+                                        : const Color(0xFF2E7D32))
+                                    .withValues(alpha: 0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Iconsax.wallet_3, color: Colors.white, size: 20.sp),
+                                  SizedBox(width: 8.w),
+                                  Text(
+                                    'Saldo Budget Anda',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.9),
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  if (_currentUser!.budgetBalance < 500000)
+                                    Container(
+                                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(12.r),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Iconsax.warning_2, color: Colors.white, size: 12.sp),
+                                          SizedBox(width: 4.w),
+                                          Text(
+                                            'Saldo Rendah',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10.sp,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              SizedBox(height: 8.h),
+                              Text(
+                                _formatCurrency(_currentUser!.budgetBalance),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 28.sp,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              if (_currentUser!.budgetBalance < 500000) ...[
+                                SizedBox(height: 8.h),
+                                Text(
+                                  'Hubungi admin untuk penambahan saldo jika diperlukan',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                    fontSize: 11.sp,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
                   // Dashboard Cards
                   if (_dashboardStats != null)
                     SliverToBoxAdapter(
